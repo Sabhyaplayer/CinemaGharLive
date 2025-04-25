@@ -2,7 +2,6 @@
 
 export default async function handler(req, res) {
     // Allow requests from anywhere (for simplicity, Vercel handles this well)
-    // In production, you might restrict this to your deployed frontend URL
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -27,22 +26,21 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: 'Server configuration error.' });
     }
 
-    // --- Option 1: Using getChatHistory (Might be heavy if channel is huge) ---
+    // --- Using getChatHistory ---
     // Requires Bot to be ADMIN
     // Let's limit to recent 100 messages for performance. Adjust if needed.
     const HISTORY_LIMIT = 100;
     const apiUrl = `https://api.telegram.org/bot${BOT_TOKEN}/getChatHistory?chat_id=${CHANNEL_ID}&limit=${HISTORY_LIMIT}`;
 
-    // --- Option 2: Using getUpdates (More complex due to offset handling) ---
-    // Might be better for *very* large channels, but harder to implement reliably here.
-    // We will stick with getChatHistory for simplicity in this example.
-
     try {
         console.log(`Fetching history for channel: ${CHANNEL_ID}`);
         const response = await fetch(apiUrl);
+
+        // Check if the initial fetch failed (e.g., 404 Not Found for the channel/bot combo)
         if (!response.ok) {
             const errorData = await response.json();
             console.error('Telegram API Error (getChatHistory):', response.status, errorData);
+            // Throw specific error to be caught below
             throw new Error(`Telegram API Error: ${errorData.description || response.statusText}`);
         }
 
@@ -54,16 +52,44 @@ export default async function handler(req, res) {
              throw new Error('Failed to fetch messages or invalid data structure.');
         }
 
-        const videoMessages = data.result.messages.filter(msg => msg.video);
+        // --- CORRECTED FILTER ---
+        // Filter for messages that have EITHER a 'video' OR a 'document' property
+        // You could add stricter document mime-type checks here if needed later
+        const mediaMessages = data.result.messages.filter(msg => msg.video || msg.document);
+        // --- END CORRECTED FILTER ---
 
-        console.log(`Found ${videoMessages.length} video messages.`);
+        console.log(`Found ${mediaMessages.length} potential media messages.`);
 
+        // --- CORRECTED MAPPING LOGIC ---
         // Use Promise.all to fetch file paths concurrently
-        const videoDataPromises = videoMessages.map(async (msg) => {
-            const video = msg.video;
-            const fileId = video.file_id;
-            const caption = msg.caption || video.file_name || `Video ${msg.message_id}`; // Use filename or ID as fallback caption
-            const messageId = msg.message_id; // Unique identifier
+        const mediaDataPromises = mediaMessages.map(async (msg) => {
+            let fileId = null;
+            let caption = msg.caption || ''; // Start with caption, if any
+            let fileName = ''; // To store the filename for fallback caption
+
+            // Determine if it's a video or document and extract data
+            if (msg.video) {
+                fileId = msg.video.file_id;
+                fileName = msg.video.file_name || '';
+            } else if (msg.document) {
+                fileId = msg.document.file_id;
+                fileName = msg.document.file_name || '';
+                // Optional: Add mime-type check here if you ONLY want video documents
+                // if (!msg.document.mime_type || !msg.document.mime_type.startsWith('video/')) {
+                //     console.log(`Skipping document with non-video mime_type: ${msg.document.mime_type}`);
+                //     return null;
+                // }
+            } else {
+                 // Should not happen due to the filter, but safeguard
+                return null;
+            }
+
+            // Create a fallback caption if none exists
+            if (!caption) {
+                caption = fileName || `Media ${msg.message_id}`; // Use filename or message ID
+            }
+
+            const messageId = msg.message_id; // Unique identifier for React key
 
             // Fetch the file path to create a temporary download link
             const fileInfoUrl = `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`;
@@ -71,16 +97,15 @@ export default async function handler(req, res) {
                 const fileInfoResponse = await fetch(fileInfoUrl);
                 if (!fileInfoResponse.ok) {
                      const errorData = await fileInfoResponse.json();
-                     console.error(`Failed to get file info for file_id ${fileId}:`, fileInfoResponse.status, errorData);
-                     // Skip this video if we can't get file info
+                     console.error(`Failed to get file info for file_id ${fileId} (message ${messageId}):`, fileInfoResponse.status, errorData);
+                     // Skip this media if we can't get file info (e.g., file too big, expired)
                      return null;
                 }
                 const fileInfoData = await fileInfoResponse.json();
 
                 if (!fileInfoData.ok || !fileInfoData.result || !fileInfoData.result.file_path) {
-                    console.error(`Invalid file info structure for file_id ${fileId}:`, fileInfoData);
-                    // Skip this video
-                    return null;
+                    console.error(`Invalid file info structure for file_id ${fileId} (message ${messageId}):`, fileInfoData);
+                    return null; // Skip this media
                 }
 
                 const filePath = fileInfoData.result.file_path;
@@ -91,26 +116,31 @@ export default async function handler(req, res) {
                     id: messageId, // Use message_id as a unique key
                     caption: caption,
                     downloadUrl: downloadUrl,
-                    // You could add other info like duration, thumbnail_file_id etc. if needed
-                    // thumbnailUrl: video.thumb ? `https://api.telegram.org/file/bot${BOT_TOKEN}/${(await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${video.thumb.file_id}`)).json().result.file_path}` : null
                 };
             } catch (fileError) {
-                console.error(`Error processing file_id ${fileId}:`, fileError);
-                return null; // Skip this video on error
+                console.error(`Error processing file_id ${fileId} (message ${messageId}):`, fileError);
+                return null; // Skip this media on error
             }
         });
+        // --- END CORRECTED MAPPING LOGIC ---
 
-        // Wait for all file info requests to complete and filter out nulls (errors)
-        const videos = (await Promise.all(videoDataPromises)).filter(video => video !== null);
+        // Wait for all file info requests to complete and filter out nulls (errors or skipped items)
+        const videos = (await Promise.all(mediaDataPromises)).filter(media => media !== null); // Changed var name, but keep 'videos' for response
 
-        // Optional: Reverse the order so newest videos appear first
+        // Optional: Reverse the order so newest media appear first
         videos.reverse();
 
-        console.log(`Successfully processed ${videos.length} videos.`);
+        console.log(`Successfully processed ${videos.length} media items to display.`);
+        // Return the processed list, keeping the key 'videos' for frontend compatibility
         res.status(200).json({ videos });
 
     } catch (error) {
         console.error('Error in API function:', error);
-        res.status(500).json({ error: 'Failed to fetch videos from Telegram.', details: error.message });
+        // Check if it's the specific Telegram API error we threw earlier
+        if (error.message.startsWith('Telegram API Error:')) {
+             res.status(502).json({ error: 'Failed to communicate with Telegram.', details: error.message }); // Bad Gateway might be more appropriate
+        } else {
+             res.status(500).json({ error: 'Failed to process videos.', details: error.message });
+        }
     }
 }
