@@ -1,195 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cinema Ghar IPL 2025 Live</title> <!-- Updated Page Title -->
-  <style>
-    body {
-      margin: 0;
-      padding-top: 40px; /* Add some padding at the top */
-      padding-bottom: 40px; /* Add some padding at the bottom */
-      background: #000;
-      display: flex;
-      flex-direction: column; /* Stack title and video vertically */
-      justify-content: center; /* Center the content vertically */
-      align-items: center;   /* Center the content horizontally */
-      min-height: 100vh;     /* Ensure body takes at least full viewport height */
-      box-sizing: border-box; /* Include padding in height calculation */
-      font-family: sans-serif; /* Basic clean font */
-      color: #fff; /* Default text color */
-    }
-    #page-title {
-      color: #fff; /* White text color */
-      font-size: 2em; /* Adjusted font size for potentially smaller screens */
-      margin-bottom: 20px; /* Adjusted Space */
-      text-align: center;
-    }
-    #video-container { /* Added a container for better control */
-        width: 100%;
-        max-width: 800px; /* Keeps the video from getting too wide */
-        background: #111; /* Slightly different background for the container */
-        padding: 5px; /* Optional padding around the video */
-        box-sizing: border-box;
-    }
-    video {
-      width: 100%; /* Make video fill container */
-      height: auto;      /* Maintains aspect ratio */
-      background: #000; /* Background for the video area itself */
-      display: block; /* Ensure it behaves as a block element */
-    }
-    #debug-info { /* Optional area for messages */
-        margin-top: 15px;
-        font-size: 0.9em;
-        color: #aaa;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CinemaGharLive IPL 2025 Stream</title>
+    <!-- Basic Styling -->
+    <style>
+        body {
+            font-family: sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #videoPlayer {
+            width: 80%; /* Adjust width as needed */
+            max-width: 960px; /* Maximum width */
+            background-color: #000; /* Black background for video area */
+            border: 1px solid #ccc;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .error-message {
+            color: red;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+    </style>
+    <!-- HLS.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-  <!-- Page Title -->
-  <h1 id="page-title">Cinema Ghar IPL 2025 Live</h1>
 
-  <!-- Video Container -->
-  <div id="video-container">
-    <!-- Video Player - added preload="metadata" -->
-    <video id="video" controls muted playsinline preload="metadata"></video>
-  </div>
+    <h1>CinemaGharLive IPL 2025</h1>
 
-  <div id="debug-info">Initializing player...</div>
+    <!-- The Video Element -->
+    <video id="videoPlayer" controls></video>
 
+    <!-- Error message placeholder -->
+    <div id="errorMessage" class="error-message"></div>
 
-  <script>
-    const video = document.getElementById('video');
-    const debugInfo = document.getElementById('debug-info');
-    // IMPORTANT: This video source is still external. Ensure it allows cross-origin requests.
-    const videoSrc = 'https://m3u8x2.cloudycx.net/media/hls/files/1080p.m3u8';
+    <script>
+        const video = document.getElementById('videoPlayer');
+        const videoSrc = 'https://m3u8x2.cloudycx.net/media/hls/files/1080p.m3u8';
+        const errorMessageDiv = document.getElementById('errorMessage');
 
-    function logDebug(message) {
-        console.log(message);
-        if (debugInfo) {
-            debugInfo.textContent = message;
+        function displayError(message) {
+            console.error(message);
+            errorMessageDiv.textContent = `Error: ${message}. Please check browser console for details. Ensure the stream is live and CORS is configured correctly on the source server.`;
         }
-    }
 
-    function setupHLS() {
-      logDebug("Checking HLS support...");
-      if (Hls.isSupported()) {
-        logDebug("HLS.js is supported. Initializing HLS player.");
-        const hls = new Hls({
-          // Consider tuning these based on stream characteristics and testing
-          maxBufferLength: 30,
-          // liveSyncDurationCount: 3, // Keep defaults unless needed
-          // enableWorker: true, // Keep default (true)
-          // lowLatencyMode: true // Keep default (false) unless it's truly a low-latency stream
-        });
+        // First, check for native HLS support (Safari)
+        if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = videoSrc;
+            video.addEventListener('loadedmetadata', function() {
+                console.log("Native HLS playback started.");
+                // video.play(); // Autoplay might be blocked by browser policy
+            });
+             video.addEventListener('error', function(e) {
+                // If native playback fails, try HLS.js if supported
+                if (Hls.isSupported()) {
+                    console.warn("Native HLS failed, trying HLS.js...");
+                    initializeHlsJs();
+                } else {
+                    displayError("Native HLS playback failed and HLS.js is not supported.");
+                }
+            });
+        }
+        // Else, check if HLS.js is supported
+        else if (Hls.isSupported()) {
+            console.log("HLS.js is supported, initializing...");
+            initializeHlsJs();
+        }
+        // Else, HLS is not supported
+        else {
+            displayError("HLS playback is not supported in this browser.");
+        }
 
-        logDebug("Loading HLS source: " + videoSrc);
-        hls.loadSource(videoSrc);
-        hls.attachMedia(video);
+        function initializeHlsJs() {
+            const hls = new Hls({
+                 // Optional configuration options
+                 // Example: Start playing from the live edge
+                 // liveSyncDurationCount: 3, // Number of segments to buffer
+                 // levelLoadingTimeOut: 10000, // Timeout for loading level playlists
+                 // fragLoadingTimeOut: 20000, // Timeout for loading fragments
+            });
 
-        hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-            logDebug("HLS.js attached to video element.");
-            video.controls = true; // Ensure controls are visible
-            video.muted = true; // Ensure muted for potential autoplay later if user interacts
-        });
+            // Bind HLS.js to the video element
+            hls.attachMedia(video);
 
-        hls.on(Hls.Events.MANIFEST_PARSED, function() {
-          logDebug("Manifest parsed. Video ready. User must press play.");
-          // DO NOT auto-play here for mobile compatibility.
-          // Controls are enabled, user needs to initiate playback.
-        });
+            // On manifest loaded, load the source
+            hls.on(Hls.Events.MEDIA_ATTACHED, function () {
+                console.log('HLS.js attached to video element');
+                hls.loadSource(videoSrc);
+            });
 
-        hls.on(Hls.Events.ERROR, function(event, data) {
-          console.error('HLS Error:', data);
-          logDebug(`HLS Error: ${data.type} - ${data.details}`);
-          if (data.fatal) {
-            switch (data.type) {
-              case Hls.ErrorTypes.NETWORK_ERROR:
-                logDebug('Fatal network error, trying to recover...');
-                console.error('Fatal network error encountered, trying to recover...');
-                hls.startLoad(); // Try to restart loading
-                break;
-              case Hls.ErrorTypes.MEDIA_ERROR:
-                logDebug('Fatal media error, trying to recover...');
-                console.error('Fatal media error encountered, trying to recover...');
-                hls.recoverMediaError();
-                break;
-              default:
-                logDebug('Unrecoverable HLS error. Please reload.');
-                console.error('Unrecoverable HLS error, destroying HLS instance.');
-                hls.destroy();
-                alert('An unrecoverable error occurred loading the video. Please reload the page.');
-                break;
-            }
-          } else {
-             console.warn('Non-fatal HLS error:', data);
-          }
-        });
+            // On manifest parsed, ready to play
+            hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+                console.log('Manifest loaded, levels:', data.levels.map(l => l.height + 'p'));
+                // video.play(); // Autoplay might be blocked by browser policy
+            });
 
-         video.addEventListener('loadedmetadata', function() {
-             logDebug('Video metadata loaded (via HLS.js). Dimensions: ' + video.videoWidth + 'x' + video.videoHeight);
-         });
+             // Handle errors
+             hls.on(Hls.Events.ERROR, function (event, data) {
+                console.error('HLS.js Error:', event, data);
+                let errorMsg = `HLS.js error: ${data.type} - ${data.details}`;
 
-         video.addEventListener('play', function() {
-            logDebug('Playback started.');
-         });
+                if (data.fatal) {
+                    errorMsg += " (Fatal)";
+                    switch (data.type) {
+                        case Hls.ErrorTypes.NETWORK_ERROR:
+                            errorMsg += " - Network error. Check connection or CORS headers on the stream server.";
+                             // Attempt recovery for network errors
+                            console.warn("Attempting to recover network error...");
+                            hls.startLoad();
+                            break;
+                        case Hls.ErrorTypes.MEDIA_ERROR:
+                            errorMsg += " - Media error. The stream might be corrupted or incompatible.";
+                            console.warn("Attempting to recover media error...");
+                            hls.recoverMediaError();
+                            break;
+                        default:
+                            errorMsg += " - Unrecoverable error.";
+                            // Destroy HLS instance on fatal errors we can't handle
+                            hls.destroy();
+                            break;
+                    }
+                } else {
+                     errorMsg += " (Non-fatal)";
+                }
+                 displayError(errorMsg);
+            });
+        }
 
-         video.addEventListener('pause', function() {
-            logDebug('Playback paused.');
-         });
+    </script>
 
-         video.addEventListener('waiting', function() {
-            logDebug('Player is waiting for data (buffering)...');
-         });
-
-         video.addEventListener('error', (e) => {
-             console.error('Video Element Error (HLS.js path):', video.error);
-             logDebug('Video Element Error. Code: ' + video.error?.code);
-         });
-
-
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (e.g., Safari on iOS)
-        logDebug("Native HLS support detected (e.g., Safari).");
-        video.src = videoSrc;
-        video.controls = true; // Ensure controls are visible
-        video.muted = true; // Ensure muted
-
-        video.addEventListener('loadedmetadata', () => {
-           logDebug("Native HLS metadata loaded. Video ready. User must press play. Dimensions: " + video.videoWidth + 'x' + video.videoHeight);
-           // DO NOT auto-play here for mobile compatibility.
-        });
-
-         video.addEventListener('error', (e) => {
-             console.error('Native HLS playback error:', video.error);
-             logDebug('Native HLS playback error. Code: ' + video.error?.code + ' Message: ' + video.error?.message);
-             alert('Error playing video natively. Check the console for details.');
-         });
-
-         video.addEventListener('play', function() {
-            logDebug('Playback started (Native).');
-         });
-
-         video.addEventListener('pause', function() {
-            logDebug('Playback paused (Native).');
-         });
-
-         video.addEventListener('waiting', function() {
-            logDebug('Player is waiting for data (buffering - Native)...');
-         });
-
-      } else {
-        // HLS is not supported on this browser
-        logDebug('HLS is not supported by this browser.');
-        alert('Your browser does not support HLS playback needed for this video stream.');
-        console.error('HLS is not supported by this browser.');
-      }
-    }
-
-    // Wait for the DOM to be ready before setting up the player
-    document.addEventListener('DOMContentLoaded', setupHLS);
-
-  </script>
-  <!-- No ads, redirects, anti-adblock, or devtool disablers -->
 </body>
 </html>
