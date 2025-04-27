@@ -3,33 +3,77 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cinema Ghar IPL 2025 Live</title> <!-- Updated Page Title -->
+  <title>Cinema Ghar IPL 2025 Live - Multi-Stream</title> <!-- Updated Page Title -->
   <style>
     body {
       margin: 0;
-      padding-top: 40px; /* Add some padding at the top */
-      padding-bottom: 40px; /* Add some padding at the bottom */
-      background: #000;
+      padding: 20px; /* Adjusted padding */
+      background: #111; /* Slightly lighter dark background */
       display: flex;
-      flex-direction: column; /* Stack title and video vertically */
-      justify-content: center; /* Center the content vertically */
-      align-items: center;   /* Center the content horizontally */
-      min-height: 100vh;     /* Ensure body takes at least full viewport height */
-      box-sizing: border-box; /* Include padding in height calculation */
-      font-family: sans-serif; /* Basic clean font */
+      flex-direction: column;
+      justify-content: flex-start; /* Align content to the top */
+      align-items: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Nicer font */
     }
     #page-title {
-      color: #fff; /* White text color */
-      font-size: 2.5em; /* Make title larger */
-      margin-bottom: 30px; /* Space between title and video */
+      color: #eee; /* Lighter text */
+      font-size: 2em; /* Adjusted size */
+      margin-bottom: 20px;
       text-align: center;
     }
-    video {
+    #player-container {
       width: 100%;
-      max-width: 800px; /* Keeps the video from getting too wide */
-      height: auto;      /* Maintains aspect ratio */
-      background: #000; /* Background for the video area itself */
-      display: block; /* Ensure it behaves as a block element */
+      max-width: 850px; /* Slightly larger max-width */
+      /* Use padding-top hack for aspect ratio (e.g., 16:9) */
+      position: relative;
+      padding-top: 56.25%; /* 16:9 Aspect Ratio (9 / 16 * 100) */
+      background: #000;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4); /* Softer shadow */
+      border-radius: 8px; /* Rounded corners */
+      overflow: hidden; /* Keep iframe/video inside */
+      margin-bottom: 20px; /* Space below player */
+    }
+    #player-container video,
+    #player-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none; /* Remove iframe border */
+      display: block; /* Ensure block behavior */
+    }
+    /* Hide elements by default until switched */
+    #video-player {
+       display: block; /* Show HLS player by default */
+    }
+    #iframe-player {
+        display: none; /* Hide iframe player by default */
+    }
+
+    .stream-switcher {
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    .stream-switcher button {
+        padding: 10px 20px;
+        margin: 0 10px;
+        font-size: 1em;
+        cursor: pointer;
+        background-color: #444;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        transition: background-color 0.3s ease;
+    }
+    .stream-switcher button:hover {
+        background-color: #666;
+    }
+     .stream-switcher button.active {
+        background-color: #007bff; /* Highlight active stream */
+        font-weight: bold;
     }
   </style>
 </head>
@@ -38,35 +82,65 @@
   <!-- Page Title -->
   <h1 id="page-title">Cinema Ghar IPL 2025 Live</h1>
 
-  <!-- Video Player -->
-  <video id="video" controls muted playsinline></video>
+  <!-- Stream Switcher Buttons -->
+  <div class="stream-switcher">
+    <button id="btn-stream1" class="active">Stream 1 (HLS)</button>
+    <button id="btn-stream2">Stream 2 (Embed)</button>
+  </div>
+
+  <!-- Player Container -->
+  <div id="player-container">
+    <!-- Video Player (HLS) -->
+    <video id="video-player" controls muted playsinline></video>
+
+    <!-- Iframe Player (Extracted Source) -->
+    <iframe id="iframe-player"
+            src="" <!-- Initially empty, set via JS -->
+            frameborder="0"
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowfullscreen>
+    </iframe>
+  </div>
 
   <!-- HLS Player Script -->
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    // De-obfuscated HLS setup script (Functionally identical to the original)
-    const video = document.getElementById('video');
-    // IMPORTANT: This video source is still external.
-    const videoSrc = 'https://m3u8x2.cloudycx.net/media/hls/files/1080p.m3u8'; // Keep the original source
+    const videoElement = document.getElementById('video-player');
+    const iframeElement = document.getElementById('iframe-player');
+    const btnStream1 = document.getElementById('btn-stream1');
+    const btnStream2 = document.getElementById('btn-stream2');
 
+    // --- Stream Sources ---
+    const hlsSrc = 'https://m3u8x2.cloudycx.net/media/hls/files/1080p.m3u8'; // Original HLS source
+    const iframeSrc = 'https://crichd.onlinetvbd.com/?play=369'; // Extracted iframe source
+
+    let hls = null; // Variable to hold the HLS instance
+
+    // --- HLS Setup Function ---
     function setupHLS() {
+      // Destroy existing HLS instance if it exists
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
       if (Hls.isSupported()) {
-        const hls = new Hls({
-          maxBufferLength: 30, // 30 seconds
+        console.log("Initializing HLS.js");
+        hls = new Hls({
+          maxBufferLength: 30,
           liveSyncDurationCount: 3,
           enableWorker: true,
           lowLatencyMode: true
         });
 
-        hls.loadSource(videoSrc);
-        hls.attachMedia(video);
+        hls.loadSource(hlsSrc);
+        hls.attachMedia(videoElement);
 
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
-          console.log("Manifest parsed, attempting to play...");
-          video.controls = true; // Ensure controls are enabled
-          video.play().catch(error => {
-             console.warn("Autoplay prevented:", error);
-             // Autoplay might be blocked by the browser, requiring user interaction.
+          console.log("HLS Manifest parsed, attempting to play...");
+          videoElement.controls = true;
+          videoElement.play().catch(error => {
+             console.warn("HLS Autoplay prevented:", error);
           });
         });
 
@@ -76,7 +150,7 @@
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error('Fatal network error encountered, trying to recover...');
-                hls.startLoad(); // Try to restart loading
+                hls.startLoad();
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
                 console.error('Fatal media error encountered, trying to recover...');
@@ -85,7 +159,9 @@
               default:
                 console.error('Unrecoverable HLS error, destroying HLS instance.');
                 hls.destroy();
-                alert('An unrecoverable error occurred loading the video. Please reload the page.');
+                hls = null; // Nullify the instance
+                // Optionally alert user or try re-initializing later
+                // alert('An unrecoverable error occurred loading the HLS stream.');
                 break;
             }
           } else {
@@ -93,34 +169,80 @@
           }
         });
 
-         video.addEventListener('loadedmetadata', function() {
-             console.log('Video metadata loaded.');
+         videoElement.addEventListener('loadedmetadata', function() {
+             console.log('HLS Video metadata loaded.');
          });
 
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS support (e.g., Safari)
+      } else if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support
         console.log("Native HLS support detected.");
-        video.src = videoSrc;
-        video.addEventListener('loadedmetadata', () => {
+        videoElement.src = hlsSrc;
+        videoElement.addEventListener('loadedmetadata', () => {
            console.log("Native HLS metadata loaded, attempting to play...");
-           video.controls = true; // Ensure controls are enabled
-           video.play().catch(error => {
+           videoElement.controls = true;
+           videoElement.play().catch(error => {
                console.warn("Autoplay prevented (native HLS):", error);
            });
         });
-         video.addEventListener('error', (e) => {
-             console.error('Native HLS playback error:', video.error);
-             alert('Error playing video natively. Check the console for details.');
+         videoElement.addEventListener('error', (e) => {
+             console.error('Native HLS playback error:', videoElement.error);
+             // alert('Error playing video natively.');
          });
 
       } else {
-        // HLS is not supported on this browser
-        alert('Your browser does not support HLS playback needed for this video stream.');
+        // HLS is not supported
+        alert('Your browser does not support HLS playback needed for Stream 1.');
         console.error('HLS is not supported by this browser.');
       }
     }
 
-    setupHLS();
+    // --- Stream Switching Logic ---
+    function switchToStream1() {
+      console.log("Switching to Stream 1 (HLS)");
+      // Pause iframe by setting src to blank (stops loading/playing)
+      iframeElement.src = 'about:blank';
+      iframeElement.style.display = 'none';
+
+      // Show video element and initialize/play HLS
+      videoElement.style.display = 'block';
+      setupHLS(); // Re-initialize HLS
+
+      // Update button state
+      btnStream1.classList.add('active');
+      btnStream2.classList.remove('active');
+    }
+
+    function switchToStream2() {
+      console.log("Switching to Stream 2 (Embed)");
+      // Pause HLS video and destroy instance
+      videoElement.pause();
+      videoElement.src = ''; // Clear src to be sure
+       if (hls) {
+          hls.destroy();
+          hls = null;
+          console.log("HLS instance destroyed.");
+       }
+       videoElement.style.display = 'none';
+
+
+      // Show iframe and set its source
+      iframeElement.style.display = 'block';
+      iframeElement.src = iframeSrc;
+
+      // Update button state
+      btnStream1.classList.remove('active');
+      btnStream2.classList.add('active');
+    }
+
+    // --- Event Listeners for Buttons ---
+    btnStream1.addEventListener('click', switchToStream1);
+    btnStream2.addEventListener('click', switchToStream2);
+
+    // --- Initialize Default Stream (Stream 1) on Load ---
+    document.addEventListener('DOMContentLoaded', () => {
+        switchToStream1(); // Start with Stream 1 (HLS)
+    });
+
   </script>
 
   <!-- No ads, redirects, anti-adblock, or devtool disablers -->
