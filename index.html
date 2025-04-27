@@ -1,13 +1,126 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>@allinone_reborn - Video Player</title> <!-- Slightly modified title for clarity -->
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column; /* Keeps video centered vertically */
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      /* gap: 10px; /* Removed gap as there's only one main element now */
+    }
+    /* Removed .ad-container style as it's no longer used */
+    video {
+      width: 100%;
+      max-width: 800px; /* Keeps the video from getting too wide */
+      height: auto;      /* Maintains aspect ratio */
+      background: #000; /* Background for the video area itself */
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Video Player -->
+  <video id="video" controls muted playsinline></video>
+
+  <!-- HLS Player Script -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <script>
+    // De-obfuscated HLS setup script (for better readability, but functionally identical to the original)
+    const video = document.getElementById('video');
+    // IMPORTANT: This video source is still external.
+    // To play a truly local file, change this URL.
+    const videoSrc = 'https://m3u8x2.cloudycx.net/media/hls/files/1080p.m3u8';
+
+    function setupHLS() {
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          maxBufferLength: 30, // 30 seconds
+          liveSyncDurationCount: 3,
+          enableWorker: true,
+          lowLatencyMode: true
+        });
+
+        hls.loadSource(videoSrc);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+          console.log("Manifest parsed, attempting to play...");
+          video.controls = true; // Ensure controls are enabled
+          video.play().catch(error => {
+             // Autoplay might be blocked, user interaction needed
+             console.warn("Autoplay prevented:", error);
+             // You might want to add a play button overlay here if autoplay fails
+          });
+        });
+
+        hls.on(Hls.Events.ERROR, function(event, data) {
+          console.error('HLS Error:', data);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error('Fatal network error encountered, trying to recover...');
+                hls.startLoad(); // Try to restart loading
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error('Fatal media error encountered, trying to recover...');
+                hls.recoverMediaError();
+                break;
+              default:
+                // Cannot recover, destroy HLS instance
+                console.error('Unrecoverable HLS error, destroying HLS instance.');
+                hls.destroy();
+                alert('An unrecoverable error occurred. Please reload the page.');
+                break;
+            }
+          } else {
+             console.warn('Non-fatal HLS error:', data);
+             // Optionally handle non-fatal errors (e.g., buffer stall)
+          }
+        });
+
+        // Optional: Handle metadata loaded to ensure video dimensions are set
+         video.addEventListener('loadedmetadata', function() {
+             console.log('Video metadata loaded.');
+         });
+
+
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (e.g., Safari)
+        console.log("Native HLS support detected.");
+        video.src = videoSrc;
+        video.addEventListener('loadedmetadata', () => {
+           console.log("Native HLS metadata loaded, attempting to play...");
+           video.controls = true; // Ensure controls are enabled
+           video.play().catch(error => {
+               console.warn("Autoplay prevented (native HLS):", error);
+           });
+        });
+         video.addEventListener('error', (e) => {
+             console.error('Native HLS playback error:', video.error);
+             alert('Error playing video natively. Check the console for details.');
+         });
+
+      } else {
+        // HLS is not supported on this browser
+        alert('Your browser does not support HLS playback. Please try a different browser.');
+        console.error('HLS is not supported by this browser.');
+      }
+    }
+
+    setupHLS();
+  </script>
+
+  <!-- Removed Telegram Redirect -->
+  <!-- Removed Disable DevTools -->
+  <!-- Removed Anti-Adblock Popup and Script -->
+  <!-- Removed all ad network scripts and ad containers -->
+
+</body>
 </html>
